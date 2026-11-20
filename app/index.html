@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leonida Ledger — GTA 6 Trophy Guide &amp; Tracker</title>
+<meta name="description" content="Offline guide and tracker for all 55 Grand Theft Auto VI trophies on PlayStation 5: checklist, roadmap to the platinum, missables, and a cited guide to each trophy.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">LL</div>
+    <div>
+      <h1>Leonida Ledger</h1>
+      <p class="tagline">The GTA 6 trophy guide &amp; tracker — all 55 trophies, offline, in your own words from cited sources.</p>
+    </div>
+  </div>
+  <div class="progress" id="progress" aria-live="polite">
+    <div class="big-count"><span id="earnedCount">0</span><span class="of"> / 55 earned</span></div>
+    <div class="bar" role="progressbar" aria-label="Trophies earned"><div class="fill" id="progressFill" style="width:0%"></div></div>
+    <div class="grade-counts" id="gradeCounts"></div>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Views">
+  <button type="button" class="tab active" data-view="checklist">Checklist</button>
+  <button type="button" class="tab" data-view="roadmap">Roadmap to Platinum</button>
+  <button type="button" class="tab" data-view="missables">Missables</button>
+  <button type="button" class="tab" data-view="sources">Sources</button>
+</nav>
+
+<section class="controls" id="controls" aria-label="Tracker controls">
+  <input id="search" type="search" placeholder="Search trophies, missions, places…" aria-label="Search trophies">
+  <div class="chips" id="kindChips" role="group" aria-label="Filter by kind"></div>
+  <label class="ctl">Grade
+    <select id="gradeFilter">
+      <option value="all">All grades</option>
+      <option value="platinum">Platinum</option>
+      <option value="gold">Gold</option>
+      <option value="silver">Silver</option>
+      <option value="bronze">Bronze</option>
+    </select>
+  </label>
+  <label class="ctl check"><input id="hideEarned" type="checkbox"> Hide earned</label>
+  <label class="ctl check spoiler"><input id="spoilerToggle" type="checkbox" checked> Hide story spoilers</label>
+  <span class="spacer"></span>
+  <button id="exportBtn" type="button">Export progress</button>
+  <label class="import-btn">Import progress <input id="importFile" type="file" accept="application/json,.json"></label>
+  <button id="resetBtn" type="button" class="quiet">Reset</button>
+</section>
+
+<main class="layout">
+  <div id="view"></div>
+  <aside id="detail" class="detail" aria-label="Trophy guide" hidden></aside>
+</main>
+
+<footer>
+  <p><strong>Unofficial fan guide.</strong> Not affiliated with Rockstar Games, Take-Two Interactive or PlayStation. No Rockstar logo or official artwork is used anywhere in this guide. Trophy names and descriptions are shown as PlayStation publishes them; every guide is written in our own words and cites its sources — see the Sources tab.</p>
+  <p>55 trophies: 1 platinum, 2 gold, 6 silver, 46 bronze · 28 hidden on PlayStation · 0 online trophies · about 200 hours to the platinum · difficulty 4/10 (PowerPyx) · 1 playthrough, no mission replay.</p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
