@@ -1,5 +1,9 @@
 # Leonida Ledger — GTA VI Trophy Guide & Tracker
 
+[![make.fun](https://make.fun/badge/gta6-trophy-guide-01.svg)](https://make.fun/bounty/gta6-trophy-guide-01)
+[![rank](https://make.fun/badge/gta6-trophy-guide-01/revan997/gta6-trophy-guide-01/rank.svg)](https://make.fun/bounty/gta6-trophy-guide-01)
+[![reward](https://make.fun/badge/gta6-trophy-guide-01/revan997/gta6-trophy-guide-01/reward.svg)](https://make.fun/bounty/gta6-trophy-guide-01)
+
 An offline guide and tracker for all **55 PlayStation 5 trophies** of Grand
 Theft Auto VI, built for make.fun competition `gta6-trophy-guide-01`
 ($250, top 50 pay). It is a plain static web app: open `app/index.html`
