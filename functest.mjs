@@ -1,189 +1,247 @@
-// Leonida Ledger — functional checks (Node 22+, no dependencies).
-//
-// Serves the real app over HTTP, drives it in the Playwright-cached headless
-// shell over one CDP WebSocket, and asserts the tracker's behaviour end to
-// end: 55 rows render, ticking earns and persists, the spoiler rule hides
-// story names, search narrows, the detail pane shows sources and the
-// missable warning, notes save, export and import round-trip, and the roadmap
-// and missables views render — with zero page exceptions or console errors.
-//
-// Usage: node serve.ts & node functest.mjs ; the server must be up on :8080.
-import { execFile } from 'node:child_process';
+// Functional tests for the Leonida Ledger — 21 checks, run in a real
+// headless Chromium against the app served by serve.ts.
+//   node functest.mjs
+// Exits 0 only when all 21 pass.
 
-const SHELL = '/home/hatch/.cache/ms-playwright/chromium_headless_shell-1255/chrome-headless-shell-linux64/chrome-headless-shell';
-const DEBUG_PORT = 9226;
-const APP = 'http://localhost:8080';
-const LEDGER = 'leonida-ledger-v1';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const results = [];
-function record(name, passed, extra = '') {
-  results.push({ name, passed });
-  console.log(`${passed ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`);
-}
+const require = createRequire(import.meta.url);
+const { chromium } = require('/home/hatch/workspace/.neon-test/node_modules/playwright-core');
 
-async function launchShell() {
-  const proc = execFile(SHELL, [
-    '--headless=new',
-    `--remote-debugging-port=${DEBUG_PORT}`,
-    '--no-sandbox',
-    '--disable-gpu',
-    '--user-data-dir=/tmp/chrome-func',
-    '--window-size=1280,800',
-    'about:blank',
-  ], () => {});
-  for (let attempt = 0; attempt < 40; attempt++) {
-    try { await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`); return proc; }
-    catch { await wait(300); }
-  }
-  proc.kill();
-  throw new Error('headless shell never answered on the debug port');
-}
+const here = dirname(fileURLToPath(import.meta.url));
+const PORT = 8901;
+const BASE = `http://127.0.0.1:${PORT}`;
+const SHELL = `${process.env.HOME}/.cache/ms-playwright/chromium_headless_shell-1255/chrome-headless-shell-linux64/chrome-headless-shell`;
 
-async function attachPage(proc) {
-  const targets = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)).json();
-  const page = targets.find((t) => t.type === 'page');
-  const socket = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
-  let nextId = 0;
-  const waiting = new Map();
-  const problems = [];
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.id && waiting.has(data.id)) { waiting.get(data.id)(data); waiting.delete(data.id); return; }
-    if (data.method === 'Runtime.exceptionThrown') {
-      problems.push('EXCEPTION: ' + (data.params.exceptionDetails.exception?.description || data.params.exceptionDetails.text));
-    }
-    if (data.method === 'Runtime.consoleAPICalled' && data.params.type === 'error') {
-      problems.push('CONSOLE ERROR: ' + data.params.args.map((a) => a.value || a.description || '').join(' '));
-    }
-  };
-  const call = (method, params = {}) => new Promise((resolve, reject) => {
-    const id = ++nextId;
-    waiting.set(id, (data) => (data.error ? reject(new Error(data.error.message)) : resolve(data.result)));
-    socket.send(JSON.stringify({ id, method, params }));
-  });
-  const probe = async (expression) => {
-    const out = await call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (out.exceptionDetails) throw new Error('page JS error: ' + (out.exceptionDetails.exception?.description || out.exceptionDetails.text));
-    return out.result?.value;
-  };
-  const go = async (url) => { await call('Page.navigate', { url }); };
-  return { socket, problems, call, probe, go, proc };
-}
-
-const tests = [
-  ['renders 55 trophy rows', async (c) => (await c.probe(`document.querySelectorAll('.row').length`)) === 55],
-  ['progress starts at 0', async (c) => (await c.probe(`document.getElementById('earnedCount').textContent`)) === '0'],
-  ['no external requests', async (c) => (await c.probe(`performance.getEntriesByType('resource').every(r => r.name.startsWith('http://localhost:8080/'))`)) === true],
-  ['ticking earns 1 trophy', async (c) => {
-    await c.probe(`document.querySelector('.row input[type=checkbox]').click()`);
-    await wait(200);
-    return (await c.probe(`document.getElementById('earnedCount').textContent`)) === '1';
-  }],
-  ['earned saved to localStorage', async (c) => (await c.probe(`JSON.parse(localStorage.getItem('${LEDGER}')).earned`)).includes('Vice Got a Price!')],
-  ['progress survives reload', async (c) => {
-    await c.go(APP + '/');
-    await wait(900);
-    return (await c.probe(`document.getElementById('earnedCount').textContent`)) === '1';
-  }],
-  ['spoiler on hides story names', async (c) => (await c.probe(`document.body.innerText.includes('Just Like Paradise')`)) === false],
-  ['spoiler on shows placeholders', async (c) => (await c.probe(`document.body.innerText.includes('Hidden story trophy')`)) === true],
-  ['spoiler off reveals story names', async (c) => {
-    await c.probe(`document.getElementById('spoilerToggle').click()`);
-    await wait(200);
-    const shown = (await c.probe(`document.body.innerText.includes('Just Like Paradise')`)) === true;
-    await c.probe(`document.getElementById('spoilerToggle').click()`);
-    await wait(200);
-    return shown;
-  }],
-  ['search "meditat" narrows rows', async (c) => {
-    await c.probe(`const s=document.getElementById('search'); s.value='meditat'; s.dispatchEvent(new Event('input',{bubbles:true}));`);
-    await wait(200);
-    const rows = await c.probe(`document.querySelectorAll('.row').length`);
-    await c.probe(`{ const s2=document.getElementById('search'); s2.value=''; s2.dispatchEvent(new Event('input',{bubbles:true})); }`);
-    await wait(200);
-    return rows >= 1 && rows < 55;
-  }],
-  ['detail opens with sources', async (c) => {
-    await c.probe(`(() => { const rows=[...document.querySelectorAll('.row')]; rows.find(r=>r.textContent.includes('Positive Mental Attitude')).click(); })()`);
-    await wait(300);
-    return (await c.probe(`document.querySelectorAll('#detail .src-list a').length`)) >= 2;
-  }],
-  ['detail shows missable warning', async (c) => (await c.probe(`document.querySelector('#detail .warn') !== null`)) === true],
-  ['note saved to localStorage', async (c) => {
-    await c.probe(`const ta=document.querySelector('#detail textarea'); ta.value='test note 123'; ta.dispatchEvent(new Event('change',{bubbles:true}));`);
-    await wait(200);
-    return (await c.probe(`JSON.parse(localStorage.getItem('${LEDGER}')).notes['Positive Mental Attitude']`)) === 'test note 123';
-  }],
-  ['export payload lists the earned trophy', async (c) => {
-    const exported = await c.probe(`(async () => {
-      let captured = null;
-      const orig = URL.createObjectURL.bind(URL);
-      URL.createObjectURL = (b) => { captured = b; return orig(b); };
-      document.getElementById('exportBtn').click();
-      await new Promise(r => setTimeout(r, 300));
-      URL.createObjectURL = orig;
-      return captured ? await captured.text() : null;
-    })()`);
-    const payload = JSON.parse(exported);
-    c.payload = payload;
-    return payload.earned.includes('Vice Got a Price!');
-  }],
-  ['export payload carries the note', async (c) => c.payload.notes['Positive Mental Attitude'] === 'test note 123'],
-  ['import replaces earned set', async (c) => {
-    await c.probe(`(async () => {
-      const file = new File([JSON.stringify({app:'leonida-ledger', earned:['Cunning Stunts','The Shootist'], notes:{}})], 'progress.json', {type:'application/json'});
-      const dt = new DataTransfer(); dt.items.add(file);
-      const input = document.getElementById('importFile');
-      input.files = dt.files;
-      input.dispatchEvent(new Event('change', {bubbles:true}));
-    })()`);
-    await wait(600);
-    return (await c.probe(`document.getElementById('earnedCount').textContent`)) === '2';
-  }],
-  ['imported names are the file ones', async (c) => (await c.probe(`JSON.parse(localStorage.getItem('${LEDGER}')).earned.join(',')`)) === 'Cunning Stunts,The Shootist'],
-  ['roadmap shows 3 stages', async (c) => {
-    await c.go(APP + '/#roadmap');
-    await wait(900);
-    return (await c.probe(`document.body.innerText.includes('Stage 3')`)) === true;
-  }],
-  ['roadmap shows Next up', async (c) => (await c.probe(`document.body.innerText.includes('Next up')`)) === true],
-  ['missables view renders', async (c) => {
-    await c.go(APP + '/#missables');
-    await wait(600);
-    return (await c.probe(`document.body.innerText.includes('Missable trophies: 1 to watch')`)) === true;
-  }],
-  ['no page exceptions or console errors', async (c) => c.problems.length === 0],
+// The official 55 names, as PlayStation publishes them (from the kit's
+// starter list, cross-checked on Exophase).
+const OFFICIAL_NAMES = [
+  'Vice Got a Price!', 'Just Like Paradise', 'Paradise Lost', 'T**s Ass Drug Money',
+  'Vice City, Baby!', 'Top Of The World, Ma', 'You Gotta Know When to Get Off', 'Trust',
+  'Break the Bank', 'Family Matters', 'DWNFALL', 'Hi-Jacked', 'Snow Storm', 'A Long Road',
+  'Cunning Stunts', 'Master of None', 'The Shootist', 'Top Fun', 'Earn Cash, Not Kudos',
+  'Baited My Tackle', 'Stick Fiddler', 'Road to Rehabilitation', 'This Was No Boat Accident',
+  'The Lone Rider', 'Strangers & Freaks', 'Supply & Demand', 'Spin On This!',
+  'Positive Mental Attitude', 'Fair Game', 'Don’t Touch My Deck', 'You WAiNKer!',
+  'One Last Thing', 'Hot Together', 'Retail Therapy', 'Whip It Good', 'Gunslinger',
+  'Catch Me If You Can', 'Challenging Tank', 'Sneakthief', 'Maximum Withdrawal',
+  'A Classic Blitz Play', 'The Goodtime State', 'Pest Control', 'In The Beginning…',
+  'Capital Offense', 'Let’s Go Bowling', 'Personal Best', 'Actions Speak Louder',
+  'Bad Luck, I Guess', 'The Truth Is Out There', 'Ten Pin', 'Dime on the Dollar',
+  'Treat Yo Self', 'Little Boxes', 'On the Spot',
 ];
 
-async function main() {
-  const proc = await launchShell();
-  const ctx = await attachPage(proc);
-  try {
-    await ctx.call('Runtime.enable');
-    await ctx.call('Page.enable');
-    await ctx.call('Page.addScriptToEvaluateOnNewDocument', { source: 'window.alert = () => {}; window.confirm = () => true;' });
-    await ctx.go(APP + '/');
-    await wait(1200);
-    await ctx.probe(`localStorage.clear(); window.alert = () => {};`);
-    await ctx.go(APP + '/');
-    await wait(900);
-    for (const [name, run] of tests) {
-      let passed = false;
-      let extra = '';
-      try { passed = await run(ctx); }
-      catch (err) { extra = err.message; }
-      if (name === 'no page exceptions or console errors') extra = ctx.problems.join(' | ');
-      record(name, passed, extra);
-    }
-    ctx.socket.close();
-  } finally {
-    proc.kill();
-  }
-  const failed = results.filter((r) => !r.passed).length;
-  console.log(failed === 0 ? `ALL FUNCTIONAL TESTS PASSED (${results.length}/${results.length})` : `${failed} FAILURES`);
-  process.exit(failed === 0 ? 0 : 1);
+const results = [];
+function check(name, ok, detail = '') {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-main().catch((err) => { console.error('TEST RUN FAILED:', err.message); process.exit(1); });
+function startServer() {
+  return new Promise((resolve, reject) => {
+    const child = spawn('node', ['serve.ts', '--port', String(PORT)], { cwd: here, stdio: 'pipe' });
+    let started = false;
+    const timer = setTimeout(() => reject(new Error('serve.ts did not start in time')), 10000);
+    child.stdout.on('data', () => {
+      if (!started) { started = true; clearTimeout(timer); resolve(child); }
+    });
+    child.stderr.on('data', (chunk) => process.stderr.write(chunk));
+    child.on('exit', (code) => {
+      if (!started) { clearTimeout(timer); reject(new Error(`serve.ts exited ${code}`)); }
+    });
+  });
+}
+
+const data = JSON.parse(readFileSync(join(here, 'app', 'data', 'trophies.json'), 'utf8'));
+const trophies = data.trophies;
+
+// ---- Data checks (7) ----
+check('data: 55 trophies', trophies.length === 55, `${trophies.length} found`);
+const grades = trophies.reduce((acc, t) => { acc[t.grade] = (acc[t.grade] || 0) + 1; return acc; }, {});
+check(
+  'data: grade split is 1 platinum, 2 gold, 6 silver, 46 bronze',
+  grades.platinum === 1 && grades.gold === 2 && grades.silver === 6 && grades.bronze === 46,
+  JSON.stringify(grades),
+);
+check(
+  'data: every trophy has a non-blank guide',
+  trophies.every((t) => typeof t.guide === 'string' && t.guide.trim().length > 20),
+);
+check(
+  'data: every trophy cites at least 2 sources with http(s) links',
+  trophies.every((t) => Array.isArray(t.sources) && t.sources.length >= 2
+    && t.sources.every((s) => typeof s.url === 'string' && /^https?:\/\//.test(s.url))),
+);
+const nameKey = (name) => name
+  .replace(/[‘’‚‛]/g, "'")
+  .replace(/[–—―]/g, '-')
+  .replace(/…/g, '...')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .toLowerCase();
+const nameSet = new Set(trophies.map((t) => nameKey(t.name)));
+check(
+  'data: names match the official 55',
+  OFFICIAL_NAMES.every((name) => nameSet.has(nameKey(name))) && nameSet.size === 55,
+);
+check(
+  'data: exactly one missable (Positive Mental Attitude) and 3 unconfirmed',
+  trophies.filter((t) => t.missable).map((t) => t.id).join() === '28'
+    && trophies.filter((t) => t.unconfirmed).length === 3,
+);
+const stages = trophies.reduce((acc, t) => { acc[t.stage] = (acc[t.stage] || 0) + 1; return acc; }, {});
+check(
+  'data: roadmap stages cover all 55 trophies',
+  (stages[1] || 0) + (stages[2] || 0) + (stages[3] || 0) === 55 && stages[1] > 0 && stages[2] > 0 && stages[3] > 0,
+  JSON.stringify(stages),
+);
+
+// ---- Browser checks (14) ----
+const server = await startServer();
+const browser = await chromium.launch({ executablePath: SHELL });
+const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
+const consoleErrors = [];
+const failedRequests = [];
+page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
+page.on('pageerror', (error) => consoleErrors.push(String(error)));
+page.on('requestfailed', (request) => failedRequests.push(request.url()));
+page.on('response', (response) => { if (response.status() >= 400) failedRequests.push(`${response.status()} ${response.url()}`); });
+
+try {
+  await page.goto(`${BASE}/index.html`, { waitUntil: 'networkidle' });
+  await page.evaluate(() => window.localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+
+  check(
+    'app: loads with the right title and 55 checklist rows',
+    (await page.title()).includes('Leonida Ledger') && (await page.locator('#trophy-list .trophy-row').count()) === 55,
+    `rows: ${await page.locator('#trophy-list .trophy-row').count()}`,
+  );
+
+  await page.locator('#trophy-list .trophy-row').nth(27).locator('.trophy-check').check();
+  const progressAfterTick = await page.locator('#progress-count').innerText();
+  await page.reload({ waitUntil: 'networkidle' });
+  check(
+    'app: ticking a trophy moves progress to 1 / 55 and survives a reload',
+    progressAfterTick === '1 / 55 earned'
+      && (await page.locator('#progress-count').innerText()) === '1 / 55 earned'
+      && (await page.evaluate(() => JSON.parse(window.localStorage.getItem('leonida-ledger-v1')).earned['28'] === true)),
+  );
+
+  await page.locator('#search-input').fill('meditat');
+  check(
+    'app: search for "meditat" shows exactly 1 trophy',
+    (await page.locator('#trophy-list .trophy-row').count()) === 1,
+  );
+  await page.locator('#search-input').fill('');
+
+  await page.locator('.chip[data-kind="story"]').click();
+  check(
+    'app: story kind filter shows 12 trophies',
+    (await page.locator('#trophy-list .trophy-row').count()) === 12,
+  );
+  await page.locator('.chip[data-kind="all"]').click();
+
+  await page.locator('#grade-select').selectOption('silver');
+  check(
+    'app: silver grade filter shows 6 trophies',
+    (await page.locator('#trophy-list .trophy-row').count()) === 6,
+  );
+  await page.locator('#grade-select').selectOption('all');
+
+  await page.locator('#hide-earned').check();
+  check(
+    'app: hide-earned removes the 1 earned trophy (54 rows left)',
+    (await page.locator('#trophy-list .trophy-row').count()) === 54,
+  );
+  await page.locator('#hide-earned').uncheck();
+
+  await page.locator('#spoiler-toggle').check();
+  const firstStoryName = await page.locator('#trophy-list .trophy-row').nth(1).locator('.trophy-name').innerText();
+  check(
+    'app: spoiler-safe mode hides story trophy names',
+    firstStoryName === 'Hidden story trophy',
+    `saw: ${firstStoryName}`,
+  );
+  await page.locator('#spoiler-toggle').uncheck();
+
+  await page.locator('#trophy-list .trophy-row').nth(27).locator('.trophy-name').click();
+  const detailText = await page.locator('#detail-pane').innerText();
+  check(
+    'app: detail pane shows the guide and its sources for Positive Mental Attitude',
+    detailText.includes('Positive Mental Attitude')
+      && detailText.includes('HOW TO EARN IT')
+      && detailText.includes('SOURCES')
+      && detailText.includes('PowerPyx'),
+    detailText.slice(0, 120).replace(/\n/g, ' | '),
+  );
+
+  await page.locator('.tab[data-view="roadmap"]').click();
+  check(
+    'app: roadmap view shows 3 stages with progress',
+    (await page.locator('.stage-card').count()) === 3
+      && (await page.locator('.stage-progress').first().innerText()).includes('earned in this stage'),
+  );
+
+  await page.locator('.tab[data-view="missables"]').click();
+  const missableText = await page.locator('#view-missables').innerText();
+  check(
+    'app: missables view names Positive Mental Attitude and the warnings box',
+    missableText.includes('Positive Mental Attitude') && missableText.includes('Watch out while you play'),
+  );
+
+  // Un-earn the missable trophy so the planner's first pick is it again.
+  await page.locator('.tab[data-view="checklist"]').click();
+  await page.locator('#trophy-list .trophy-row').nth(27).locator('.trophy-check').uncheck();
+  await page.locator('.tab[data-view="planner"]').click();
+  const plannerItems = await page.locator('.planner-list li').count();
+  const firstPlanner = await page.locator('.planner-list h3').first().innerText();
+  check(
+    'app: planner lists 5 next trophies, missable first',
+    plannerItems === 5 && firstPlanner === 'Positive Mental Attitude',
+    `first: ${firstPlanner}`,
+  );
+
+  const downloadPromise = page.waitForEvent('download', { timeout: 5000 });
+  await page.locator('.tab[data-view="checklist"]').click();
+  await page.locator('#trophy-list .trophy-row').nth(27).locator('.trophy-check').check();
+  await page.locator('#export-button').click();
+  const download = await downloadPromise;
+  const exportPath = `/tmp/leonida-export-${Date.now()}.json`;
+  await download.saveAs(exportPath);
+  const exported = JSON.parse(readFileSync(exportPath, 'utf8'));
+  check(
+    'app: export downloads a JSON file listing the earned trophy',
+    exported.app === 'leonida-ledger' && Array.isArray(exported.earned) && exported.earned.includes(28),
+  );
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#reset-button').click();
+  await page.waitForTimeout(200);
+  const afterReset = await page.locator('#progress-count').innerText();
+  await page.locator('#import-input').setInputFiles(exportPath);
+  await page.waitForTimeout(300);
+  check(
+    'app: import restores the exported progress (1 / 55 again)',
+    afterReset === '0 / 55 earned'
+      && (await page.locator('#progress-count').innerText()) === '1 / 55 earned',
+  );
+
+  check(
+    'app: zero console errors and zero failed requests',
+    consoleErrors.length === 0 && failedRequests.length === 0,
+    [...consoleErrors, ...failedRequests].join(' | '),
+  );
+} finally {
+  await browser.close();
+  server.kill();
+}
+
+const passed = results.filter((r) => r.ok).length;
+console.log(`\n${passed}/${results.length} functional tests passed`);
+process.exit(passed === results.length ? 0 : 1);

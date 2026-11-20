@@ -1,71 +1,86 @@
 # Leonida Ledger — GTA VI Trophy Guide & Tracker
 
-An offline web app that guides and tracks all **55 PlayStation 5 trophies** of
-Grand Theft Auto VI (1 platinum, 2 gold, 6 silver, 46 bronze): a checklist
-with saved progress, a 3-stage roadmap to the platinum, the one missable
-trophy flagged, and a cited guide for every trophy — all in our own words.
+An offline guide and tracker for all **55 PlayStation 5 trophies** of Grand
+Theft Auto VI, built for make.fun competition `gta6-trophy-guide-01`
+($250, top 50 pay). It is a plain static web app: open `app/index.html`
+in a browser and it works with the network off.
 
 ## What it does
 
-- **Checklist** — every trophy with its official name, description and grade;
-  tick to earn, progress saves in the browser (localStorage).
-- **Filters** — by kind (story, missable, collectibles, activities, online),
-  by grade, by search, and hide-earned.
-- **Spoiler setting** — story trophies stay hidden ("Hidden story trophy")
-  until earned.
-- **Roadmap** — 3 stages (story, 100% checklist, cleanup) with a Next up
-  planner that always points at the next trophy in line.
-- **Missables** — the one trophy PowerPyx flags as potentially missable
-  (Positive Mental Attitude: the Chapter 1 meditation), and why the rest are safe.
-- **Detail pane** — click any trophy for its guide, its sources, a missable
-  warning where it applies, and a personal note field.
-- **Export / import** — download progress as JSON, import it back later.
-- **Offline** — static files under `app/`, no build step, no network requests
-  at run time. Every guide cites its sources (PowerPyx, Exophase,
-  PSNProfiles); the one trophy nobody has confirmed yet (Bad Luck, I Guess)
-  says so instead of guessing.
+- **Checklist of all 55 trophies** — every official name, description and
+  grade (1 platinum, 2 gold, 6 silver, 46 bronze), with a checkbox per
+  trophy. Progress is saved in the browser (localStorage) and can be
+  exported to a JSON file and imported back.
+- **A guide for every trophy, in our own words, with cited sources** —
+  each guide names 2–3 sources (PowerPyx, Exophase, PSNProfiles,
+  Push Square, KeenGamer, GTASpotter). Where a trophy's method is not
+  pinned down yet, the guide says so plainly instead of guessing:
+  `Bad Luck, I Guess` (method unknown), `Fair Game` (exact animal
+  unconfirmed), `Positive Mental Attitude` (whether the Chapter 1
+  meditation is required is unconfirmed).
+- **Filters** — by kind (story, side quests, collectibles, activities,
+  heists, combat, exploration, money, milestones), by grade, by search
+  text, and hide-earned. Personal notes per trophy, saved in the browser.
+- **Spoiler-safe mode** — hides the names, descriptions and guides of
+  story trophies until they are earned.
+- **Roadmap to the platinum** — three stages built from the official
+  descriptions: play the story (~60–80 h), clear the 100% checklist
+  (~100 h), mop up (~10 h). PowerPyx puts the whole run at about
+  200 hours, difficulty 4/10, one playthrough, no online trophies.
+- **Missables** — only one trophy can be missed, `Positive Mental
+  Attitude`, and only its first meditation (Chapter 1, Jason's house).
+  The page also warns about cheats disabling trophies, no mission
+  replay, and the permanent Irredeemable profile.
+- **Next up planner** — given what you have earned, the next five
+  trophies to chase, missable first.
+
+## What it is not
+
+No Rockstar Games logo, artwork, box art or game screenshots — the look
+is our own. No network requests at run time: the app fetches only its
+own `data/trophies.json`. Trophy names and descriptions are shown as
+PlayStation publishes them; everything else is our own writing.
 
 ## Run it
 
 ```sh
-node serve.ts        # serves app/ at http://localhost:8080
+node serve.ts            # serves app/ at http://localhost:8080
 ```
 
 ## Test it
 
 ```sh
-node serve.ts &     # in one terminal
-node functest.mjs   # 21 functional checks in headless Chrome over CDP
-```
-
-## Screenshots
-
-```sh
-node shots.mjs      # reads shots.json, writes 4 JPEGs to screenshots/
+node functest.mjs        # 21 functional tests, headless Chromium
+node shots.mjs           # takes screenshots/1-cover.jpg … 4-sources.jpg
 ```
 
 ## Hand it in
 
 ```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts   # writes out/dossier.json
+mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 ```
 
-`main.ts` copies `app/` and `screenshots/` to the output directory and
-builds the dossier with the vendored `vendor/makefun-frontend.ts`. It writes
-the same bytes on every run.
+`main.ts` (Node 22, standard library only) copies `app/` and
+`screenshots/` to the output directory and writes `dossier.json` with
+the kit's vendored `vendor/makefun-frontend.ts`. It refuses to run
+unless `trophies.json` holds 55 trophies with a guide each and
+`screenshots/` holds 3–4 images, and it writes identical bytes on
+every run.
 
-## Layout
+## Files
 
-- `app/index.html` — the shell: hero progress, tabs, toolbar, detail pane.
-- `app/style.css` — the whole look (Vice-sunset: deep plum, neon pink, teal).
-- `app/js/main.js` — boot, hash routing, event wiring, export/import.
-- `app/js/state.js` — the localStorage ledger and the export/import payloads.
-- `app/js/render.js` — checklist, detail, roadmap, missables, sources, progress.
-- `app/data/trophies.json` — the 55 trophies: official name, description and
-  grade, plus kind, missable flag, roadmap stage, PSN target count, our guide
-  and its sources.
+- `app/index.html` — the page shell
+- `app/css/ledger.css` — the ledger look (dark green, parchment, gold)
+- `app/js/boot.js` — startup and wiring
+- `app/js/progress.js` — saved progress, export/import
+- `app/js/filters.js` — kind/grade/search filters and the spoiler rule
+- `app/js/roadmap.js` — the three stages and the Next-up planner
+- `app/js/views.js` — DOM rendering
+- `app/data/trophies.json` — the 55 trophies with guides and sources
+- `functest.mjs`, `shots.mjs`, `shots.json` — tests and screenshots
+- `main.ts`, `serve.ts` — hand-in program and local server
+- `vendor/makefun-frontend.ts` — the kit's library, unchanged
 
 ## License
 
-MIT. Unofficial and not affiliated with Rockstar Games; no Rockstar artwork
-or logo appears anywhere in this guide.
+MIT — see `LICENSE`.
