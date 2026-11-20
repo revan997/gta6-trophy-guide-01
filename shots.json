@@ -1,1 +1,27 @@
-[{"detail":"Positive Mental Attitude","file":"1-cover.jpg","path":"/","seed":["Just Like Paradise","Paradise Lost","T**s Ass Drug Money","Vice City, Baby!","Trust","Baited My Tackle","Stick Fiddler","Whip It Good","The Goodtime State","In The Beginning…","Treat Yo Self","Master of None","Little Boxes"],"viewport":{"height":800,"width":1280}},{"file":"2-roadmap.jpg","path":"/#roadmap","seed":["Just Like Paradise","Paradise Lost","T**s Ass Drug Money","Vice City, Baby!","Trust","Baited My Tackle","Stick Fiddler","Whip It Good","The Goodtime State","In The Beginning…","Treat Yo Self","Master of None","Little Boxes"],"viewport":{"height":800,"width":1280}},{"file":"3-missables.jpg","path":"/#missables","seed":["Just Like Paradise","Paradise Lost","T**s Ass Drug Money","Vice City, Baby!","Trust","Baited My Tackle","Stick Fiddler","Whip It Good","The Goodtime State","In The Beginning…","Treat Yo Self","Master of None","Little Boxes"],"viewport":{"height":800,"width":1280}},{"file":"4-sources.jpg","path":"/#sources","seed":["Just Like Paradise","Paradise Lost","T**s Ass Drug Money","Vice City, Baby!","Trust","Baited My Tackle","Stick Fiddler","Whip It Good","The Goodtime State","In The Beginning…","Treat Yo Self","Master of None","Little Boxes"],"viewport":{"height":800,"width":1280}}]
+[
+  {
+    "file": "1-cover.jpg",
+    "path": "/",
+    "detail": "Positive Mental Attitude",
+    "seed": ["Just Like Paradise", "Paradise Lost", "T**s Ass Drug Money", "Vice City, Baby!", "Trust", "Baited My Tackle", "Stick Fiddler", "Whip It Good", "The Goodtime State", "In The Beginning…", "Treat Yo Self", "Master of None", "Little Boxes"],
+    "viewport": {"width": 1280, "height": 800}
+  },
+  {
+    "file": "2-roadmap.jpg",
+    "path": "/#roadmap",
+    "seed": ["Just Like Paradise", "Paradise Lost", "T**s Ass Drug Money", "Vice City, Baby!", "Trust", "Baited My Tackle", "Stick Fiddler", "Whip It Good", "The Goodtime State", "In The Beginning…", "Treat Yo Self", "Master of None", "Little Boxes"],
+    "viewport": {"width": 1280, "height": 800}
+  },
+  {
+    "file": "3-missables.jpg",
+    "path": "/#missables",
+    "seed": ["Just Like Paradise", "Paradise Lost", "T**s Ass Drug Money", "Vice City, Baby!", "Trust", "Baited My Tackle", "Stick Fiddler", "Whip It Good", "The Goodtime State", "In The Beginning…", "Treat Yo Self", "Master of None", "Little Boxes"],
+    "viewport": {"width": 1280, "height": 800}
+  },
+  {
+    "file": "4-sources.jpg",
+    "path": "/#sources",
+    "seed": ["Just Like Paradise", "Paradise Lost", "T**s Ass Drug Money", "Vice City, Baby!", "Trust", "Baited My Tackle", "Stick Fiddler", "Whip It Good", "The Goodtime State", "In The Beginning…", "Treat Yo Self", "Master of None", "Little Boxes"],
+    "viewport": {"width": 1280, "height": 800}
+  }
+]
